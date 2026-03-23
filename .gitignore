@@ -1,0 +1,23 @@
+# Java build output
+*.class
+out/
+bin/
+build/
+target/
+
+# IDE/editor files
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temp/backup files
+*~
+*.swp
+*.swo
+
+# Office/lock temp files
+.LCK*
