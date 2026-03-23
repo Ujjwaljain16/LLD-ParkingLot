@@ -1,90 +1,120 @@
 # Multilevel Parking Lot System
 
-## Class Diagram (Text)
+## Class Diagram
 
-ParkingLot
-- has many ParkingFloor
-- has many Gate
-- has active tickets map: ticketId -> ParkingTicket
-- uses BillingService
-- methods: park(...), status(), exit(...)
+```
+			 ┌──────────────┐
+			 │     Main     │
+			 └──────┬───────┘
+				│
+				▼
+		      ┌──────────────────┐
+		      │    ParkingLot    │
+		      │ +park(...)       │
+		      │ +status()        │
+		      │ +exit(...)       │
+		      └───┬──────┬───────┘
+			  │      │
+	      ┌───────────┘      └──────────────┐
+	      ▼                                  ▼
+      ┌───────────────┐                  ┌───────────────┐
+      │ ParkingFloor  │                  │     Gate      │
+      │ -floorNumber  │                  │ -gateId       │
+      │ -slots        │                  │ -floorNumber  │
+      └───────┬───────┘                  └───────────────┘
+	      │
+	      ▼
+      ┌───────────────┐         ┌─────────────────┐
+      │  ParkingSlot  │◄────────│  ParkingTicket  │
+      │ -slotNumber   │         │ -ticketId       │
+      │ -slotType     │         │ -vehicle        │
+      │ -occupied     │         │ -slotNumber     │
+      │ -parkedVehicle│         │ -slotType       │
+      └───────┬───────┘         │ -entryTime      │
+	      │                 │ -entryGateId    │
+	      │                 └─────────────────┘
+	      ▼
+      ┌───────────────┐
+      │    Vehicle    │
+      │ -regNumber    │
+      │ -vehicleType  │
+      └───────────────┘
 
-ParkingFloor
-- floorNumber
-- list of ParkingSlot
-- method: find first available slot by SlotType
+      ┌─────────────────────────── Interface Layer ───────────────────────────┐
+      │                                                                       │
+      │  ┌──────────────────────┐   ┌────────────────────────┐                │
+      │  │   PricingService     │   │ CompatibilityStrategy  │                │
+      │  └──────────┬───────────┘   └──────────┬─────────────┘                │
+      │             │                          │                               │
+      │             ▼                          ▼                               │
+      │  ┌──────────────────────┐   ┌────────────────────────┐                │
+      │  │    BillingService    │   │DefaultCompatibilityStr.│                │
+      │  └──────────────────────┘   └────────────────────────┘                │
+      │                                                                       │
+      │  ┌──────────────────────┐   ┌────────────────────────┐                │
+      │  │ SlotAssignmentStrat. │   │   TicketIdGenerator    │                │
+      │  └──────────┬───────────┘   └──────────┬─────────────┘                │
+      │             │                          │                               │
+      │             ▼                          ▼                               │
+      │  ┌──────────────────────┐   ┌────────────────────────┐                │
+      │  │ NearestSlotAssign... │   │ SimpleTicketIdGenerator│                │
+      │  └──────────────────────┘   └────────────────────────┘                │
+      └───────────────────────────────────────────────────────────────────────┘
 
-ParkingSlot
-- slotNumber
-- slotType (SMALL / MEDIUM / LARGE)
-- occupied or free
-- parkedVehicle
-
-Vehicle
-- registrationNumber
-- vehicleType (BIKE / CAR / BUS)
-
-ParkingTicket
-- ticketId
-- vehicle details
-- slot number
-- slot type
-- entry time
-- entry gate id
-
-Gate
-- gateId
-- floorNumber
-
-BillingService
-- calculates amount using time and slot hourly rate
-
-Enums
+Enums:
 - VehicleType: BIKE, CAR, BUS
-- SlotType: SMALL, MEDIUM, LARGE (each with hourly rate)
+- SlotType: SMALL, MEDIUM, LARGE (with hourly rate)
+```
 
-## Approach
+## Why This Approach Was Chosen
 
-1. Keep all data in memory using simple classes.
-2. `ParkingLot` is the main controller class.
-3. On `park(...)`:
-   - Check gate id.
-   - Check if requested slot type is compatible with vehicle type.
-   - Build compatible slot order:
-     - Bike: SMALL, MEDIUM, LARGE
-     - Car: MEDIUM, LARGE
-     - Bus: LARGE
-   - Put requested slot type first (if provided).
-   - Find nearest floor from entry gate floor.
-   - In that floor order, pick first free compatible slot.
-   - Mark slot occupied and create ticket.
-   - Save ticket in active ticket map.
-4. On `status()`:
-   - Count free slots grouped by slot type.
-5. On `exit(ticket, exitTime)`:
-   - Validate ticket from active ticket map.
-   - Calculate bill by slot type hourly rate.
-   - Billing hours = ceiling of duration in hours (minimum 1 hour).
-   - Free the slot and remove active ticket.
+1. The problem is state-driven, so in-memory object modeling is enough and clean for LLD.
+2. ParkingLot is kept as coordinator and heavy logic is split into small focused classes.
+3. Strategy-based slot finding and compatibility keep code flexible without making it complex.
+4. Billing is separated so pricing rules can change independently.
+5. This gives good SOLID balance while staying simple and student-friendly.
 
-## Explanation (Simple)
+## Explanation
 
-This design solves parking for multiple floors and multiple gates.
+When a vehicle enters:
+1. The system validates gate and compatibility.
+2. It prepares compatible slot preference based on vehicle type and requested slot.
+3. It checks floors by nearest distance from the gate floor.
+4. It picks the first free compatible slot.
+5. It creates and stores a ticket in active tickets map.
 
-The nearest-slot logic is simple: compare floor distance from gate floor, then scan slots in list order. This is enough for LLD and avoids complex graph logic.
+When status is requested:
+1. It counts all free slots grouped by slot type.
 
-Vehicle and slot compatibility rules are enforced:
-- Bike can park in SMALL, MEDIUM, LARGE
-- Car can park in MEDIUM, LARGE
-- Bus can park only in LARGE
+When a vehicle exits:
+1. It validates the ticket from active tickets map.
+2. It calculates duration and rounds up to billable hours (minimum 1 hour).
+3. It applies slot type hourly rate (not vehicle type).
+4. It frees the slot and removes the active ticket.
 
-Billing is based on slot type, not vehicle type. So if a bike is parked in a LARGE slot, LARGE rate is used.
+Compatibility rules used:
+- Bike: SMALL, MEDIUM, LARGE
+- Car: MEDIUM, LARGE
+- Bus: LARGE only
 
-The `activeTickets` map helps track currently parked vehicles and makes exit processing easy and safe.
+## Quick Start
 
-## Assumptions
+1. Open terminal in the ParkingLot folder.
+2. Compile:
 
-- In-memory system only (no database).
-- Single-threaded usage (no concurrency handling).
-- Times are passed in API calls.
-- Ticket can be used once for exit.
+```bash
+javac src/*.java
+```
+
+3. Run:
+
+```bash
+java -cp src Main
+```
+
+4. You will see:
+- tickets created for parked vehicles
+- current availability by slot type
+- final bill amounts on exit
+---
+`LLM was used to polish the content the idea and approch was original `

@@ -50,11 +50,11 @@ public class ParkingTicket {
 
     @Override
     public String toString() {
-        return "Ticket=" + ticketId
-                + ", Vehicle=" + vehicle
-                + ", Slot=" + slotNumber
-                + ", SlotType=" + slotType
-                + ", EntryTime=" + entryTime
-                + ", Gate=" + entryGateId;
+        return "Ticket " + ticketId
+            + " is for vehicle " + vehicle
+            + ". The assigned slot is " + slotNumber
+            + " of type " + slotType
+            + ". Entry time is " + entryTime
+            + " from gate " + entryGateId + ".";
     }
 }

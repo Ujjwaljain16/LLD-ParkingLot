@@ -1,8 +1,9 @@
 import java.time.Duration;
 import java.time.LocalDateTime;
 
-public class BillingService {
+public class BillingService implements PricingService {
 
+    @Override
     public double calculateBill(LocalDateTime entryTime, LocalDateTime exitTime, SlotType slotType) {
         if (exitTime.isBefore(entryTime)) {
             throw new IllegalArgumentException("Exit time cannot be before entry time");

@@ -1,6 +1,5 @@
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,16 +10,36 @@ public class ParkingLot {
     private final List<ParkingFloor> floors;
     private final Map<String, Gate> gates;
     private final Map<String, ParkingTicket> activeTickets;
-    private final BillingService billingService;
-    private int ticketCounter;
+    private final PricingService pricingService;
+    private final CompatibilityStrategy compatibilityStrategy;
+    private final SlotAssignmentStrategy slotAssignmentStrategy;
+    private final TicketIdGenerator ticketIdGenerator;
 
     public ParkingLot(String name) {
+        this(
+                name,
+                new BillingService(),
+                new DefaultCompatibilityStrategy(),
+                new NearestSlotAssignmentStrategy(),
+                new SimpleTicketIdGenerator()
+        );
+    }
+
+    public ParkingLot(
+            String name,
+            PricingService pricingService,
+            CompatibilityStrategy compatibilityStrategy,
+            SlotAssignmentStrategy slotAssignmentStrategy,
+            TicketIdGenerator ticketIdGenerator
+    ) {
         this.name = name;
         this.floors = new ArrayList<>();
         this.gates = new LinkedHashMap<>();
         this.activeTickets = new LinkedHashMap<>();
-        this.billingService = new BillingService();
-        this.ticketCounter = 1;
+        this.pricingService = pricingService;
+        this.compatibilityStrategy = compatibilityStrategy;
+        this.slotAssignmentStrategy = slotAssignmentStrategy;
+        this.ticketIdGenerator = ticketIdGenerator;
     }
 
     public String getName() {
@@ -41,26 +60,27 @@ public class ParkingLot {
             throw new IllegalArgumentException("Invalid gate id: " + entryGateId);
         }
 
-        if (requestedSlotType != null && !isCompatible(vehicle.getVehicleType(), requestedSlotType)) {
+        if (requestedSlotType != null
+                && !compatibilityStrategy.canParkInSlotType(vehicle.getVehicleType(), requestedSlotType)) {
             throw new IllegalArgumentException(
                     "Vehicle type " + vehicle.getVehicleType() + " cannot park in " + requestedSlotType + " slot"
             );
         }
 
-        List<SlotType> preferredOrder = getCompatibleSlotTypes(vehicle.getVehicleType());
-        if (requestedSlotType != null) {
-            preferredOrder.remove(requestedSlotType);
-            preferredOrder.add(0, requestedSlotType);
-        }
-
-        ParkingSlot slot = findNearestAvailableSlot(gate, preferredOrder);
+        ParkingSlot slot = slotAssignmentStrategy.findSlot(
+                vehicle,
+                requestedSlotType,
+                gate,
+                floors,
+                compatibilityStrategy
+        );
         if (slot == null) {
             throw new IllegalStateException("No compatible slot available for this vehicle");
         }
 
         slot.parkVehicle(vehicle);
 
-        String ticketId = "T" + ticketCounter++;
+        String ticketId = ticketIdGenerator.nextId();
         ParkingTicket ticket = new ParkingTicket(
                 ticketId,
                 vehicle,
@@ -100,7 +120,7 @@ public class ParkingLot {
             throw new IllegalStateException("Slot not found for ticket: " + activeTicket.getSlotNumber());
         }
 
-        double amount = billingService.calculateBill(
+        double amount = pricingService.calculateBill(
                 activeTicket.getEntryTime(),
                 exitTime,
                 activeTicket.getSlotType()
@@ -109,22 +129,6 @@ public class ParkingLot {
         slot.removeVehicle();
         activeTickets.remove(activeTicket.getTicketId());
         return amount;
-    }
-
-    private ParkingSlot findNearestAvailableSlot(Gate gate, List<SlotType> slotPreferenceOrder) {
-        List<ParkingFloor> orderedFloors = new ArrayList<>(floors);
-        orderedFloors.sort(Comparator.comparingInt(floor ->
-                Math.abs(floor.getFloorNumber() - gate.getFloorNumber())));
-
-        for (ParkingFloor floor : orderedFloors) {
-            for (SlotType slotType : slotPreferenceOrder) {
-                ParkingSlot slot = floor.findFirstAvailableByType(slotType);
-                if (slot != null) {
-                    return slot;
-                }
-            }
-        }
-        return null;
     }
 
     private ParkingSlot findSlotByNumber(String slotNumber) {
@@ -136,32 +140,5 @@ public class ParkingLot {
             }
         }
         return null;
-    }
-
-    private boolean isCompatible(VehicleType vehicleType, SlotType slotType) {
-        if (vehicleType == VehicleType.BIKE) {
-            return true;
-        }
-        if (vehicleType == VehicleType.CAR) {
-            return slotType == SlotType.MEDIUM || slotType == SlotType.LARGE;
-        }
-        return slotType == SlotType.LARGE;
-    }
-
-    private List<SlotType> getCompatibleSlotTypes(VehicleType vehicleType) {
-        List<SlotType> compatibleTypes = new ArrayList<>();
-        if (vehicleType == VehicleType.BIKE) {
-            compatibleTypes.add(SlotType.SMALL);
-            compatibleTypes.add(SlotType.MEDIUM);
-            compatibleTypes.add(SlotType.LARGE);
-            return compatibleTypes;
-        }
-        if (vehicleType == VehicleType.CAR) {
-            compatibleTypes.add(SlotType.MEDIUM);
-            compatibleTypes.add(SlotType.LARGE);
-            return compatibleTypes;
-        }
-        compatibleTypes.add(SlotType.LARGE);
-        return compatibleTypes;
     }
 }

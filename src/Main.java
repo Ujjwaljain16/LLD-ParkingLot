@@ -8,29 +8,34 @@ public class Main {
         Vehicle bike = new Vehicle("KA-01-BK-1001", VehicleType.BIKE);
         Vehicle car = new Vehicle("KA-01-CR-2002", VehicleType.CAR);
         Vehicle bus = new Vehicle("KA-01-BS-3003", VehicleType.BUS);
+        Vehicle bike2 = new Vehicle("KA-01-BK-4444", VehicleType.BIKE);
 
         LocalDateTime now = LocalDateTime.now();
 
         ParkingTicket bikeTicket = parkingLot.park(bike, now.minusMinutes(95), SlotType.SMALL, "G1");
         ParkingTicket carTicket = parkingLot.park(car, now.minusMinutes(140), SlotType.MEDIUM, "G2");
         ParkingTicket busTicket = parkingLot.park(bus, now.minusMinutes(190), SlotType.LARGE, "G1");
+        ParkingTicket bikeFallbackTicket = parkingLot.park(bike2, now.minusMinutes(40), SlotType.MEDIUM, "G1");
 
-        System.out.println("--- Tickets Generated ---");
+        System.out.println("Tickets created successfully.");
         System.out.println(bikeTicket);
         System.out.println(carTicket);
         System.out.println(busTicket);
+        System.out.println(bikeFallbackTicket);
 
-        System.out.println("\n--- Availability After Parking ---");
+        System.out.println("\nCurrent slot availability after parking:");
         printStatus(parkingLot.status());
 
         double bikeBill = parkingLot.exit(bikeTicket, now.plusMinutes(10));
         double busBill = parkingLot.exit(busTicket, now.plusMinutes(20));
+        double bikeFallbackBill = parkingLot.exit(bikeFallbackTicket, now.plusMinutes(5));
 
-        System.out.println("\n--- Exit Bills ---");
-        System.out.println("Bike bill: " + bikeBill);
-        System.out.println("Bus bill: " + busBill);
+        System.out.println("\nVehicle exits completed. Final bill amounts:");
+        System.out.println("Bike bill is " + bikeBill);
+        System.out.println("Bus bill is " + busBill);
+        System.out.println("Second bike bill is " + bikeFallbackBill + " and it is based on the slot used");
 
-        System.out.println("\n--- Availability After Exit ---");
+        System.out.println("\nCurrent slot availability after exits:");
         printStatus(parkingLot.status());
     }
 
@@ -60,7 +65,7 @@ public class Main {
 
     private static void printStatus(Map<SlotType, Integer> status) {
         for (SlotType slotType : SlotType.values()) {
-            System.out.println(slotType + " -> " + status.get(slotType) + " slots free");
+            System.out.println("Available " + slotType + " slots are " + status.get(slotType));
         }
     }
 }
